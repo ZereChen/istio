@@ -378,6 +378,10 @@ func (configgen *ConfigGeneratorImpl) BuildListeners(env *model.Environment, nod
 	switch node.Type {
 	case model.SidecarProxy:
 		builder = configgen.buildSidecarListeners(env, node, push, builder)
+		builder.patchListeners(push)
+		listeners := builder.getListeners()
+		listeners = configgen.addDefaultPort(env, node, listeners)
+		return listeners
 	case model.Router:
 		builder = configgen.buildGatewayListeners(env, node, push, builder)
 	}
@@ -402,7 +406,6 @@ func (configgen *ConfigGeneratorImpl) buildSidecarListeners(
 			buildVirtualOutboundListener(configgen, env, node, push).
 			buildVirtualInboundListener(configgen, env, node, push)
 	}
-
 	return builder
 }
 
