@@ -1,13 +1,11 @@
 package bootstrap
 
 import (
-	"github.com/hashicorp/go-multierror"
-	"istio.io/istio/pilot/pkg/model"
-	rlslib "istio.io/istio/pkg/rls"
-	"istio.io/pkg/log"
 	"strconv"
 	"strings"
-	"time"
+
+	"istio.io/istio/pilot/pkg/model"
+	"istio.io/pkg/log"
 )
 
 // initRlsClient creates the RLS client if running with rate limiter service enable.
