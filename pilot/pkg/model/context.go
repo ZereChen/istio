@@ -58,8 +58,6 @@ type Environment struct {
 	// service registries.
 	MeshNetworks *meshconfig.MeshNetworks
 
-	BackupAddress string
-
 	PortManagerMap map[string][2]int
 
 	NsfUrlPrefix []string
@@ -67,8 +65,6 @@ type Environment struct {
 	NsfHostSuffix string
 
 	EgressDomain string
-
-	ServiceLabel string
 }
 
 // Proxy contains information about an specific instance of a proxy (envoy sidecar, gateway,

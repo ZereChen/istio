@@ -230,7 +230,10 @@ func (s *Server) initDiscoveryService(args *PilotArgs) error {
 		IstioConfigStore: s.istioConfigStore,
 		ServiceDiscovery: s.ServiceController,
 		PushContext:      model.NewPushContext(),
+		PortManagerMap:   make(map[string][2]int),
 	}
+
+	s.initNsfEnviroment(args, environment)
 
 	s.EnvoyXdsServer = envoyv2.NewDiscoveryServer(environment, args.Plugins)
 	s.mux = http.NewServeMux()

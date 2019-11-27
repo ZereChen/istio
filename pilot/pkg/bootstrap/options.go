@@ -78,6 +78,15 @@ type PilotArgs struct {
 	KeepaliveOptions         *istiokeepalive.Options
 	// ForceStop is set as true when used for testing to make the server stop quickly
 	ForceStop bool
+
+	BackUpAddress string
+
+	PortMappingManager string
+
+	NsfUrlPrefix   string
+	NsfHostSuffix  string
+	RLSServerAddrs []string
+	EgressDomain   string
 }
 
 // DiscoveryServiceOptions contains options for create a new discovery
