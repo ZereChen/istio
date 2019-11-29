@@ -672,12 +672,49 @@ func translateCORSPolicy(in *networking.CorsPolicy, _ *model.Proxy) *route.CorsP
 	if in == nil {
 		return nil
 	}
+	//replace istio.io/api => github.com/ZereChen/api v0.0.0-20191127094440-ee442bd0d3a2
+	routeAllowOriginStringMatch := make([]*matcher.StringMatcher, 0, len(in.AllowOriginStringMatch)+len(in.AllowOrigin))
+	if len(in.AllowOrigin) != 0 {
+		for _, value := range in.AllowOrigin {
+			match := &matcher.StringMatcher{MatchPattern: &matcher.StringMatcher_Exact{Exact: value}}
+			routeAllowOriginStringMatch = append(routeAllowOriginStringMatch, match)
+		}
+	}
 
 	// CORS filter is enabled by default
 	out := route.CorsPolicy{
-		AllowOrigin: in.AllowOrigin,
+		AllowOrigin:            in.AllowOrigin,
+		AllowOriginStringMatch: routeAllowOriginStringMatch,
 	}
-
+	if len(in.AllowOriginStringMatch) != 0 {
+		for _, value := range in.AllowOriginStringMatch {
+			switch value.MatchPattern.(type) {
+			case *networking.StringMatcher_Exact:
+				exact := value.MatchPattern.(*networking.StringMatcher_Exact).Exact
+				match := &matcher.StringMatcher{MatchPattern: &matcher.StringMatcher_Exact{Exact: exact}}
+				routeAllowOriginStringMatch = append(routeAllowOriginStringMatch, match)
+			case *networking.StringMatcher_Prefix:
+				prefix := value.MatchPattern.(*networking.StringMatcher_Prefix).Prefix
+				match := &matcher.StringMatcher{MatchPattern: &matcher.StringMatcher_Prefix{Prefix: prefix}}
+				routeAllowOriginStringMatch = append(routeAllowOriginStringMatch, match)
+			case *networking.StringMatcher_Regex:
+				regex := value.MatchPattern.(*networking.StringMatcher_Regex).Regex
+				match := &matcher.StringMatcher{MatchPattern: &matcher.StringMatcher_Regex{Regex: regex}}
+				routeAllowOriginStringMatch = append(routeAllowOriginStringMatch, match)
+			case *networking.StringMatcher_Suffix:
+				suffix := value.MatchPattern.(*networking.StringMatcher_Suffix).Suffix
+				match := &matcher.StringMatcher{MatchPattern: &matcher.StringMatcher_Suffix{Suffix: suffix}}
+				routeAllowOriginStringMatch = append(routeAllowOriginStringMatch, match)
+			case *networking.StringMatcher_SafeRegex:
+				safeRegex := value.MatchPattern.(*networking.StringMatcher_SafeRegex).SafeRegex
+				match := &matcher.StringMatcher{MatchPattern: &matcher.StringMatcher_SafeRegex{SafeRegex: &matcher.RegexMatcher{Regex: safeRegex}}}
+				routeAllowOriginStringMatch = append(routeAllowOriginStringMatch, match)
+			}
+		}
+	}
+	if len(routeAllowOriginStringMatch) != 0 {
+		out.AllowOriginStringMatch = routeAllowOriginStringMatch
+	}
 	out.EnabledSpecifier = &route.CorsPolicy_FilterEnabled{
 		FilterEnabled: &core.RuntimeFractionalPercent{
 			DefaultValue: &xdstype.FractionalPercent{
