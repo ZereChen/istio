@@ -35,6 +35,129 @@ import (
 	"istio.io/istio/pkg/config/schemas"
 )
 
+func TestAllowOriginStringMatch(t *testing.T) {
+	serviceRegistry := map[host.Name]*model.Service{
+		"*.example.org": {
+			Hostname:    "*.example.org",
+			Address:     "1.1.1.1",
+			ClusterVIPs: make(map[string]string),
+			Ports: model.PortList{
+				&model.Port{
+					Name:     "default",
+					Port:     8080,
+					Protocol: protocol.HTTP,
+				},
+			},
+		},
+	}
+
+	node := &model.Proxy{
+		Type:         model.SidecarProxy,
+		IPAddresses:  []string{"1.1.1.1"},
+		ID:           "someID",
+		DNSDomain:    "foo.com",
+		Metadata:     &model.NodeMetadata{IstioVersion: "1.3.0"},
+		IstioVersion: &model.IstioVersion{Major: 1, Minor: 3},
+	}
+	gatewayNames := map[string]bool{"some-gateway": true}
+
+	t.Run("for virtual service", func(t *testing.T) {
+		g := gomega.NewGomegaWithT(t)
+
+		routes, err := route.BuildHTTPRoutesForVirtualService(node, nil, virtualServiceByAllowOriginStringMatch, serviceRegistry, 8080, gatewayNames)
+		g.Expect(err).NotTo(gomega.HaveOccurred())
+		g.Expect(len(routes)).To(gomega.Equal(1))
+	})
+
+	t.Run("for virtual service with ring hash", func(t *testing.T) {
+		g := gomega.NewGomegaWithT(t)
+
+		ttl := time.Nanosecond * 100
+		meshConfig := mesh.DefaultMeshConfig()
+		push := &model.PushContext{
+			Env: &model.Environment{
+				Mesh: &meshConfig,
+			},
+		}
+		push.SetDestinationRules([]model.Config{
+			{
+				ConfigMeta: model.ConfigMeta{
+					Type:    schemas.DestinationRule.Type,
+					Version: schemas.DestinationRule.Version,
+					Name:    "acme",
+				},
+				Spec: &networking.DestinationRule{
+					Host: "*.example.org",
+					TrafficPolicy: &networking.TrafficPolicy{
+						LoadBalancer: &networking.LoadBalancerSettings{
+							LbPolicy: &networking.LoadBalancerSettings_ConsistentHash{
+								ConsistentHash: &networking.LoadBalancerSettings_ConsistentHashLB{
+									HashKey: &networking.LoadBalancerSettings_ConsistentHashLB_HttpCookie{
+										HttpCookie: &networking.LoadBalancerSettings_ConsistentHashLB_HTTPCookie{
+											Name: "hash-cookie",
+											Ttl:  &ttl,
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		})
+
+		routes, err := route.BuildHTTPRoutesForVirtualService(node, push, virtualServiceByAllowOriginStringMatch, serviceRegistry, 8080, gatewayNames)
+		g.Expect(err).NotTo(gomega.HaveOccurred())
+		g.Expect(len(routes)).To(gomega.Equal(1))
+
+		hashPolicy := &envoyroute.RouteAction_HashPolicy{
+			PolicySpecifier: &envoyroute.RouteAction_HashPolicy_Cookie_{
+				Cookie: &envoyroute.RouteAction_HashPolicy_Cookie{
+					Name: "hash-cookie",
+					Ttl:  ptypes.DurationProto(ttl),
+				},
+			},
+		}
+		g.Expect(routes[0].GetRoute().GetHashPolicy()).To(gomega.ConsistOf(hashPolicy))
+	})
+
+	t.Run("port selector based traffic policy", func(t *testing.T) {
+		g := gomega.NewGomegaWithT(t)
+
+		meshConfig := mesh.DefaultMeshConfig()
+		push := &model.PushContext{
+			Env: &model.Environment{
+				Mesh: &meshConfig,
+			},
+		}
+
+		push.SetDestinationRules([]model.Config{
+			{
+				ConfigMeta: model.ConfigMeta{
+					Type:    schemas.DestinationRule.Type,
+					Version: schemas.DestinationRule.Version,
+					Name:    "acme",
+				},
+				Spec: portLevelDestinationRule,
+			}})
+
+		gatewayNames := map[string]bool{"some-gateway": true}
+		routes, err := route.BuildHTTPRoutesForVirtualService(node, push, virtualServiceByAllowOriginStringMatch, serviceRegistry, 8080, gatewayNames)
+		g.Expect(err).NotTo(gomega.HaveOccurred())
+		g.Expect(len(routes)).To(gomega.Equal(1))
+
+		hashPolicy := &envoyroute.RouteAction_HashPolicy{
+			PolicySpecifier: &envoyroute.RouteAction_HashPolicy_Cookie_{
+				Cookie: &envoyroute.RouteAction_HashPolicy_Cookie{
+					Name: "hash-cookie",
+					Ttl:  nil,
+				},
+			},
+		}
+		g.Expect(routes[0].GetRoute().GetHashPolicy()).To(gomega.ConsistOf(hashPolicy))
+	})
+}
+
 func TestBuildHTTPRoutes(t *testing.T) {
 	serviceRegistry := map[host.Name]*model.Service{
 		"*.example.org": {
@@ -448,6 +571,55 @@ var virtualServiceWithSubsetWithPortLevelSettings = &networking.VirtualService{
 						},
 					},
 					Weight: 100,
+				},
+			},
+		},
+	},
+}
+var virtualServiceByAllowOriginStringMatch = model.Config{
+	ConfigMeta: model.ConfigMeta{
+		Type:    schemas.VirtualService.Type,
+		Version: schemas.VirtualService.Version,
+		Name:    "acme",
+	},
+	Spec: &networking.VirtualService{
+		Hosts:    []string{},
+		Gateways: []string{"some-gateway"},
+		Http: []*networking.HTTPRoute{
+			{
+				Route: []*networking.HTTPRouteDestination{
+					{
+						Destination: &networking.Destination{
+							Host: "*.example.org",
+							Port: &networking.PortSelector{
+								Number: 8484,
+							},
+						},
+						Weight: 100,
+					},
+				},
+				CorsPolicy: &networking.CorsPolicy{
+					AllowOriginStringMatch: []*networking.StringMatcher{
+						{
+							MatchPattern: &networking.StringMatcher_Exact{Exact: "/test"},
+						},
+						{
+							MatchPattern: &networking.StringMatcher_Suffix{Suffix: "suffix"},
+						},
+						{
+							MatchPattern: &networking.StringMatcher_Prefix{Prefix: "/prefix"},
+						},
+						{
+							MatchPattern: &networking.StringMatcher_Regex{Regex: "\\/(.?)\\/status"},
+						},
+						{
+							MatchPattern: &networking.StringMatcher_SafeRegex{SafeRegex: ".*?saferegex1"},
+						},
+					},
+					//AllowOrigin:[]string{
+					//	"bar",
+					//	"status",
+					//},
 				},
 			},
 		},

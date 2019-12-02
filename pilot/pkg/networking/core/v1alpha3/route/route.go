@@ -683,8 +683,7 @@ func translateCORSPolicy(in *networking.CorsPolicy, _ *model.Proxy) *route.CorsP
 
 	// CORS filter is enabled by default
 	out := route.CorsPolicy{
-		AllowOrigin:            in.AllowOrigin,
-		AllowOriginStringMatch: routeAllowOriginStringMatch,
+		AllowOrigin: in.AllowOrigin,
 	}
 	if len(in.AllowOriginStringMatch) != 0 {
 		for _, value := range in.AllowOriginStringMatch {
