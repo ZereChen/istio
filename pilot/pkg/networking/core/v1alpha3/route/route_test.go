@@ -616,10 +616,10 @@ var virtualServiceByAllowOriginStringMatch = model.Config{
 							MatchPattern: &networking.StringMatcher_SafeRegex{SafeRegex: ".*?saferegex1"},
 						},
 					},
-					//AllowOrigin:[]string{
-					//	"bar",
-					//	"status",
-					//},
+					AllowOrigin: []string{
+						"bar",
+						"status",
+					},
 				},
 			},
 		},
