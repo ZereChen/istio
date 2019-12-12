@@ -672,7 +672,7 @@ func translateCORSPolicy(in *networking.CorsPolicy, _ *model.Proxy) *route.CorsP
 	if in == nil {
 		return nil
 	}
-	//replace istio.io/api => github.com/ZereChen/api v0.0.0-20191127094440-ee442bd0d3a2
+
 	routeAllowOriginStringMatch := make([]*matcher.StringMatcher, 0, len(in.AllowOriginStringMatch)+len(in.AllowOrigin))
 	if len(in.AllowOrigin) != 0 {
 		for _, value := range in.AllowOrigin {
