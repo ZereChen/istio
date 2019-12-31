@@ -692,7 +692,43 @@ func translateCORSPolicy(in *networking.CorsPolicy, _ *model.Proxy) *route.CorsP
 	out := route.CorsPolicy{
 		AllowOrigin: in.AllowOrigin,
 	}
+	routeAllowOriginStringMatch := make([]*matcher.StringMatcher, 0, len(in.AllowOrigins)+len(in.AllowOrigin))
+	if len(in.AllowOrigin) != 0 {
+		for _, value := range in.AllowOrigin {
+			match := &matcher.StringMatcher{MatchPattern: &matcher.StringMatcher_Exact{Exact: value}}
+			routeAllowOriginStringMatch = append(routeAllowOriginStringMatch, match)
+		}
+	}
 
+	if len(in.AllowOrigins) != 0 {
+		for _, value := range in.AllowOrigins {
+			switch value.MatchType.(type) {
+			case *networking.StringMatch_Exact:
+				exact := value.MatchType.(*networking.StringMatch_Exact).Exact
+				match := &matcher.StringMatcher{MatchPattern: &matcher.StringMatcher_Exact{Exact: exact}}
+				routeAllowOriginStringMatch = append(routeAllowOriginStringMatch, match)
+			case *networking.StringMatch_Prefix:
+				prefix := value.MatchType.(*networking.StringMatch_Prefix).Prefix
+				match := &matcher.StringMatcher{MatchPattern: &matcher.StringMatcher_Prefix{Prefix: prefix}}
+				routeAllowOriginStringMatch = append(routeAllowOriginStringMatch, match)
+			case *networking.StringMatch_Regex:
+				regex := value.MatchType.(*networking.StringMatch_Regex).Regex
+				match := &matcher.StringMatcher{MatchPattern: &matcher.StringMatcher_Regex{Regex: regex}}
+				routeAllowOriginStringMatch = append(routeAllowOriginStringMatch, match)
+				//case *networking.StringMatch_Suffix:
+				//	suffix := value.MatchPattern.(*networking.StringMatcher_Suffix).Suffix
+				//	match := &matcher.StringMatcher{MatchPattern: &matcher.StringMatcher_Suffix{Suffix: suffix}}
+				//	routeAllowOriginStringMatch = append(routeAllowOriginStringMatch, match)
+				//case *networking.StringMatcher_SafeRegex:
+				//	safeRegex := value.MatchPattern.(*networking.StringMatcher_SafeRegex).SafeRegex
+				//	match := &matcher.StringMatcher{MatchPattern: &matcher.StringMatcher_SafeRegex{SafeRegex: &matcher.RegexMatcher{Regex: safeRegex}}}
+				//	routeAllowOriginStringMatch = append(routeAllowOriginStringMatch, match)
+			}
+		}
+	}
+	if len(routeAllowOriginStringMatch) != 0 {
+		out.AllowOriginStringMatch = routeAllowOriginStringMatch
+	}
 	out.EnabledSpecifier = &route.CorsPolicy_FilterEnabled{
 		FilterEnabled: &core.RuntimeFractionalPercent{
 			DefaultValue: &xdstype.FractionalPercent{
