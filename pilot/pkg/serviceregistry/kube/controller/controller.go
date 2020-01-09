@@ -141,10 +141,11 @@ var _ serviceregistry.Instance = &Controller{}
 
 // Controller is a collection of synchronized resource watchers
 // Caches are thread-safe
+//服务控制器:资源的缓存，监听并执行对应事件处理函数
 type Controller struct {
-	client    kubernetes.Interface
-	queue     queue.Instance
-	services  cache.SharedIndexInformer
+	client    kubernetes.Interface      //k8s client
+	queue     queue.Instance            //所有资源更新的共同队列，启一个协程来处理
+	services  cache.SharedIndexInformer //service informer
 	endpoints kubeEndpointsController
 
 	// TODO we can disable this when we only have EndpointSlice enabled
@@ -152,18 +153,20 @@ type Controller struct {
 	pods            *PodCache
 	metrics         model.Metrics
 	networksWatcher mesh.NetworksWatcher
-	xdsUpdater      model.XDSUpdater
+	xdsUpdater      model.XDSUpdater //直接更新xDS模型和eds增量/全量推送
 	domainSuffix    string
 	clusterID       string
 
-	serviceHandlers []func(*model.Service, model.Event)
+	serviceHandlers []func(*model.Service, model.Event) //service注册的函数
 
 	stop chan struct{}
 
 	sync.RWMutex
 	// servicesMap stores hostname ==> service, it is used to reduce convertService calls.
+	//服务缓存
 	servicesMap map[host.Name]*model.Service
 	// externalNameSvcInstanceMap stores hostname ==> instance, is used to store instances for ExternalName k8s services
+	//实例缓存
 	externalNameSvcInstanceMap map[host.Name][]*model.ServiceInstance
 
 	// CIDR ranger based on path-compressed prefix trie
@@ -192,7 +195,7 @@ func NewController(client kubernetes.Interface, options Options) *Controller {
 	}
 
 	sharedInformers := informers.NewSharedInformerFactoryWithOptions(client, options.ResyncPeriod, informers.WithNamespace(options.WatchedNamespace))
-
+	//获取service并注册handler
 	c.services = sharedInformers.Core().V1().Services().Informer()
 	registerHandlers(c.services, c.queue, "Services", c.onServiceEvent)
 
@@ -207,7 +210,7 @@ func NewController(client kubernetes.Interface, options Options) *Controller {
 	registerHandlers(c.nodes, c.queue, "Nodes", c.onNodeEvent)
 
 	podInformer := sharedInformers.Core().V1().Pods().Informer()
-	c.pods = newPodCache(podInformer, c)
+	c.pods = newPodCache(podInformer, c) //缓存
 	registerHandlers(podInformer, c.queue, "Pods", c.pods.onEvent)
 
 	return c
@@ -248,15 +251,17 @@ func (c *Controller) onServiceEvent(curr interface{}, event model.Event) error {
 	}
 
 	log.Debugf("Handle event %s for service %s in namespace %s", event, svc.Name, svc.Namespace)
-
+	//将k8s service => istio service
 	svcConv := kube.ConvertService(*svc, c.domainSuffix, c.clusterID)
 	switch event {
 	case model.EventDelete:
 		c.Lock()
+		//删除服务缓存
 		delete(c.servicesMap, svcConv.Hostname)
 		delete(c.externalNameSvcInstanceMap, svcConv.Hostname)
 		c.Unlock()
 		// EDS needs to just know when service is deleted.
+		//删除实例缓存
 		c.xdsUpdater.SvcUpdate(c.clusterID, svc.Name, svc.Namespace, event)
 	default:
 		// instance conversion is only required when service is added/updated.
@@ -352,7 +357,7 @@ func (c *Controller) Run(stop <-chan struct{}) {
 
 	go func() {
 		cache.WaitForCacheSync(stop, c.HasSynced)
-		c.queue.Run(stop)
+		c.queue.Run(stop) //从队列取出
 	}()
 
 	go c.services.Run(stop)
@@ -793,14 +798,15 @@ func (c *Controller) updateEDS(ep *v1.Endpoints, event model.Event) {
 	if event != model.EventDelete {
 		for _, ss := range ep.Subsets {
 			for _, ea := range ss.Addresses {
+				//获取endpoint 对应pod实例
 				pod := c.pods.getPodByIP(ea.IP)
 				if pod == nil {
 					// This means, the endpoint event has arrived before pod event. This might happen because
 					// PodCache is eventually consistent. We should try to get the pod from kube-api server.
 					if ea.TargetRef != nil && ea.TargetRef.Kind == "Pod" {
-						pod = c.pods.getPod(ea.TargetRef.Name, ea.TargetRef.Namespace)
+						pod = c.pods.getPod(ea.TargetRef.Name, ea.TargetRef.Namespace) //从k8s获取pod
 						if pod == nil {
-							// If pod is still not availalable, this an unuusual case.
+							// If pod is still not availalable, this an unusual case.
 							endpointsWithNoPods.Increment()
 							log.Errorf("Endpoint without pod %s %s.%s", ea.IP, ep.Name, ep.Namespace)
 							if c.metrics != nil {
@@ -824,6 +830,7 @@ func (c *Controller) updateEDS(ep *v1.Endpoints, event model.Event) {
 
 				// EDS and ServiceEntry use name for service port - ADS will need to
 				// map to numbers.
+				//将endpoint转换程istioendpoint
 				for _, port := range ss.Ports {
 					endpoints = append(endpoints, &model.IstioEndpoint{
 						Address:         ea.IP,

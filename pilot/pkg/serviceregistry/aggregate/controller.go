@@ -37,8 +37,9 @@ var _ model.ServiceDiscovery = &Controller{}
 var _ model.Controller = &Controller{}
 
 // Controller aggregates data across different registries and monitors for changes
+//看接口,serverController聚合
 type Controller struct {
-	registries []serviceregistry.Instance
+	registries []serviceregistry.Instance //注册中心
 	storeLock  sync.RWMutex
 }
 

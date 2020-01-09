@@ -65,6 +65,7 @@ func BuildClientCmd(kubeconfig, context string) clientcmd.ClientConfig {
 
 // CreateClientset is a helper function that builds a kubernetes Clienset from a kubeconfig
 // filepath. See `BuildClientConfig` for kubeconfig loading rules.
+//默认$home/.kube/config
 func CreateClientset(kubeconfig, context string) (*kubernetes.Clientset, error) {
 	c, err := BuildClientConfig(kubeconfig, context)
 	if err != nil {

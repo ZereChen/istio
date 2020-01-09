@@ -247,9 +247,8 @@ func (e *endpointsController) onEvent(curr interface{}, event model.Event) error
 			}
 		}
 	}
-
+	//忽略了AppendInstanceHandler()的handler，这里就ConfigUpdate
 	e.c.updateEDS(ep, event)
-
 	return nil
 }
 

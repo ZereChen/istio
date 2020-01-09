@@ -22,7 +22,7 @@ import (
 )
 
 type controller struct {
-	monitor     Monitor
+	monitor     Monitor //configStore监听器
 	configStore model.ConfigStore
 }
 

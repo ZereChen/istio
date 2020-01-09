@@ -26,6 +26,7 @@ type PushQueue struct {
 
 	// eventsMap stores all connections in the queue. If the same connection is enqueued again, the
 	// PushEvents will be merged.
+	//入队时，若同一个gRPC已存在,PushRequest将被合并
 	eventsMap map[*XdsConnection]*model.PushRequest
 
 	// connections maintains ordering of the queue
@@ -34,6 +35,7 @@ type PushQueue struct {
 	// inProgress stores all connections that have been Dequeue(), but not MarkDone().
 	// The value stored will be initially be nil, but may be populated if the connection is Enqueue().
 	// If model.PushRequest is not nil, it will be Enqueued again once MarkDone has been called.
+	//当前grpc已经Dequeue，但是还没MarkDone
 	inProgress map[*XdsConnection]*model.PushRequest
 }
 

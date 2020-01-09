@@ -37,6 +37,7 @@ const (
 )
 
 // initMeshConfiguration creates the mesh in the pilotConfig from the input arguments.
+//网格全局最基本配置
 func (s *Server) initMeshConfiguration(args *PilotArgs, fileWatcher filewatcher.FileWatcher) error {
 	defer func() {
 		if s.environment.Watcher != nil {

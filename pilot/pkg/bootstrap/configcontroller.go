@@ -59,6 +59,7 @@ const (
 )
 
 // initConfigController creates the config controller in the pilotConfig.
+// 从各个底层获取保存到s.ConfigStores => 聚合成storeCache => 赋值给s.configController
 func (s *Server) initConfigController(args *PilotArgs) error {
 	meshConfig := s.environment.Mesh()
 	if len(meshConfig.ConfigSources) > 0 {
@@ -123,14 +124,14 @@ func (s *Server) initMCPConfigController(args *PilotArgs) error {
 	ctx, cancel := context.WithCancel(context.Background())
 	var clients []*sink.Client
 	var conns []*grpc.ClientConn
-	var configStores []model.ConfigStoreCache
+	var configStores []model.ConfigStoreCache //configController数组
 
 	s.mcpOptions = &mcp.Options{
 		DomainSuffix: args.Config.ControllerOptions.DomainSuffix,
 		ConfigLedger: buildLedger(args.Config),
 		XDSUpdater:   s.EnvoyXdsServer,
 	}
-	reporter := monitoring.NewStatsContext("pilot")
+	reporter := monitoring.NewStatsContext("pilot") //监控
 
 	for _, configSource := range s.environment.Mesh().ConfigSources {
 		if strings.Contains(configSource.Address, fsScheme+"://") {
@@ -157,7 +158,7 @@ func (s *Server) initMCPConfigController(args *PilotArgs) error {
 			}
 		}
 
-		conn, err := grpcDial(ctx, cancel, configSource, args)
+		conn, err := grpcDial(ctx, cancel, configSource, args) //创建连接
 		if err != nil {
 			log.Errorf("Unable to dial MCP Server %q: %v", configSource.Address, err)
 			cancel()
@@ -350,8 +351,8 @@ func (s *Server) sseMCPController(args *PilotArgs,
 }
 
 func (s *Server) makeKubeConfigController(args *PilotArgs) (model.ConfigStoreCache, error) {
-	configClient, err := controller.NewClient(args.Config.KubeConfig, "", schemas.Istio,
-		args.Config.ControllerOptions.DomainSuffix, buildLedger(args.Config))
+	configClient, err := controller.NewClient(args.Config.KubeConfig, "", schemas.Istio, //config资源类型
+		args.Config.ControllerOptions.DomainSuffix, buildLedger(args.Config)) //kube-apiserver
 	if err != nil {
 		return nil, multierror.Prefix(err, "failed to open a config client.")
 	}

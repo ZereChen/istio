@@ -81,7 +81,7 @@ func NewServiceDiscovery(configController model.ConfigStoreCache, store model.Is
 					log.Warnf("Spec is not available in the old service entry during update, proceeding with full push %v", old)
 				}
 			}
-
+			//service改变，全量推送
 			if fp {
 				pushReq := &model.PushRequest{
 					Full:               true,
@@ -89,7 +89,7 @@ func NewServiceDiscovery(configController model.ConfigStoreCache, store model.Is
 					ConfigTypesUpdated: map[string]struct{}{schemas.ServiceEntry.Type: {}},
 				}
 				c.XdsUpdater.ConfigUpdate(pushReq)
-			} else {
+			} else { //增量推送
 				instances := convertInstances(curr, cs)
 				endpoints := make([]*model.IstioEndpoint, 0)
 				for _, instance := range instances {

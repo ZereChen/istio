@@ -360,6 +360,7 @@ type ServiceAttributes struct {
 // ServiceDiscovery enumerates Istio service instances.
 // nolint: lll
 //go:generate counterfeiter -o ../networking/core/v1alpha3/fakes/fake_service_discovery.gen.go --fake-name ServiceDiscovery . ServiceDiscovery
+//服务发现接口:发现istio服务和实例
 type ServiceDiscovery interface {
 	// Services list declarations of all services in the system
 	Services() ([]*Service, error)

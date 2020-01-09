@@ -109,7 +109,7 @@ func (configgen *ConfigGeneratorImpl) BuildClusters(proxy *model.Proxy, push *mo
 	clusters := make([]*apiv2.Cluster, 0)
 	instances := proxy.ServiceInstances
 
-	outboundClusters := configgen.buildOutboundClusters(proxy, push)
+	outboundClusters := configgen.buildOutboundClusters(proxy, push) //outboundcluster
 
 	switch proxy.Type {
 	case model.SidecarProxy:
@@ -123,7 +123,7 @@ func (configgen *ConfigGeneratorImpl) BuildClusters(proxy *model.Proxy, push *mo
 		for _, ip := range proxy.IPAddresses {
 			managementPorts = append(managementPorts, push.ManagementPorts(ip)...)
 		}
-		inboundClusters := configgen.buildInboundClusters(proxy, push, instances, managementPorts)
+		inboundClusters := configgen.buildInboundClusters(proxy, push, instances, managementPorts) //inboundcluster
 		// Pass through clusters for inbound traffic. These cluster bind loopback-ish src address to access node local service.
 		inboundClusters = append(inboundClusters, generateInboundPassthroughClusters(push, proxy)...)
 		inboundClusters = envoyfilter.ApplyClusterPatches(networking.EnvoyFilter_SIDECAR_INBOUND, proxy, push, inboundClusters)

@@ -103,12 +103,12 @@ type Server struct {
 	MonitorListeningAddr    net.Addr
 
 	// TODO(nmittler): Consider alternatives to exposing these directly
-	EnvoyXdsServer *envoyv2.DiscoveryServer
+	EnvoyXdsServer *envoyv2.DiscoveryServer //xds下发有关
 
 	clusterID                      string
 	environment                    *model.Environment
 	configController               model.ConfigStoreCache
-	kubeClient                     kubernetes.Interface
+	kubeClient                     kubernetes.Interface //k8s client
 	startFuncs                     []startFunc
 	multicluster                   *kubecontroller.Multicluster
 	httpServer                     *http.Server
@@ -118,16 +118,16 @@ type Server struct {
 	secureHTTPServerDNS            *http.Server
 	secureGRPCServerDNS            *grpc.Server
 	mux                            *http.ServeMux
-	kubeRegistry                   *kubecontroller.Controller
+	kubeRegistry                   *kubecontroller.Controller //k8s serverController
 	sseDiscovery                   *serviceentry.Discovery
 	sseDiscoveryOptions            *serviceentry.DiscoveryOptions
 	incrementalSSEDiscoveryOptions *serviceentry.Options
 	mcpOptions                     *mcp.Options
-	certController                 *chiron.WebhookController
+	certController                 *chiron.WebhookController //证书controller
 
-	ConfigStores []model.ConfigStoreCache
+	ConfigStores []model.ConfigStoreCache //未聚合的configController
 
-	serviceEntryStore *external.ServiceEntryStore
+	serviceEntryStore *external.ServiceEntryStore //serviceController for serviceEntry
 
 	HTTPListener net.Listener
 	GRPCListener net.Listener
@@ -281,6 +281,7 @@ func (s *Server) initDiscoveryService(args *PilotArgs) error {
 	s.EnvoyXdsServer.InitDebug(s.mux, s.ServiceController(), args.DiscoveryOptions.EnableProfiling, s.webhook)
 
 	// When the mesh config or networks change, do a full push.
+	//Meshconfig和meshnetworks 全量推送
 	s.environment.AddMeshHandler(func() {
 		s.EnvoyXdsServer.ConfigUpdate(&model.PushRequest{Full: true})
 	})
@@ -299,7 +300,7 @@ func (s *Server) initDiscoveryService(args *PilotArgs) error {
 	})
 
 	// create grpc/http server
-	s.initGrpcServer(args.KeepaliveOptions)
+	s.initGrpcServer(args.KeepaliveOptions) //创建grpcServer
 	s.httpServer = &http.Server{
 		Addr:    args.DiscoveryOptions.HTTPAddr,
 		Handler: s.mux,
@@ -395,8 +396,8 @@ func (s *Server) cleanupOnStop(stop <-chan struct{}) {
 
 func (s *Server) initGrpcServer(options *istiokeepalive.Options) {
 	grpcOptions := s.grpcServerOptions(options)
-	s.grpcServer = grpc.NewServer(grpcOptions...)
-	s.EnvoyXdsServer.Register(s.grpcServer)
+	s.grpcServer = grpc.NewServer(grpcOptions...) //创建grpcServer
+	s.EnvoyXdsServer.Register(s.grpcServer)       //handlers绑定到grpcServer
 }
 
 // initialize secureGRPCServer
@@ -599,6 +600,7 @@ func (s *Server) waitForCacheSync(stop <-chan struct{}) bool {
 }
 
 // initEventHandlers sets up event handlers for config and service updates
+// 注册具体的config和service的下发逻辑处理函数
 func (s *Server) initEventHandlers() error {
 	// Flush cached discovery responses whenever services configuration change.
 	serviceHandler := func(svc *model.Service, _ model.Event) {

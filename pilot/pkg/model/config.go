@@ -122,6 +122,7 @@ type Config struct {
 //
 // Object references supplied and returned from this interface should be
 // treated as read-only. Modifying them violates thread-safety.
+//ConfigStore描述了一组与平台无关的api，底层平台必须支持这些api来存储和检索Istio配置
 type ConfigStore interface {
 	// ConfigDescriptor exposes the configuration type schema known by the config store.
 	// The type schema defines the bidrectional mapping between configuration
@@ -179,6 +180,7 @@ func (meta *ConfigMeta) Key() string {
 // Handlers receive the notification event and the associated object.  Note
 // that all handlers must be registered before starting the cache controller.
 //go:generate counterfeiter -o ../config/aggregate/fakes/config_store_cache.gen.go --fake-name ConfigStoreCache . ConfigStoreCache
+//全量复制+远程存储同步（为各个资源提供通知机制接受事件）
 type ConfigStoreCache interface {
 	ConfigStore
 

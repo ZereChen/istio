@@ -36,7 +36,7 @@ func (s *Server) ServiceController() *aggregate.Controller {
 
 // initServiceControllers creates and initializes the service controllers
 func (s *Server) initServiceControllers(args *PilotArgs) error {
-	serviceControllers := s.ServiceController()
+	serviceControllers := s.ServiceController() //获得聚合aggregate.Controller
 	registered := make(map[serviceregistry.ProviderID]bool)
 	for _, r := range args.Service.Registries {
 		serviceRegistry := serviceregistry.ProviderID(r)
@@ -65,7 +65,7 @@ func (s *Server) initServiceControllers(args *PilotArgs) error {
 			return fmt.Errorf("service registry %s is not supported", r)
 		}
 	}
-
+	//加入serviceEntry的servicecontroller
 	s.serviceEntryStore = external.NewServiceDiscovery(s.configController, s.environment.IstioConfigStore, s.EnvoyXdsServer)
 	serviceControllers.AddRegistry(s.serviceEntryStore)
 

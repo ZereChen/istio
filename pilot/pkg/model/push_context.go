@@ -181,18 +181,22 @@ type XDSUpdater interface {
 	// changed. For each cluster and hostname, the full list of active endpoints (including empty list)
 	// must be sent. The shard name is used as a key - current implementation is using the registry
 	// name.
+	//全量eds push  => ConfigUpdate
 	EDSUpdate(shard, hostname string, namespace string, entry []*IstioEndpoint) error
 
 	// SvcUpdate is called when a service definition is updated/deleted.
+	//更新服务关联的EndpointShardsByService缓存
 	SvcUpdate(shard, hostname string, namespace string, event Event)
 
 	// ConfigUpdate is called to notify the XDS server of config updates and request a push.
 	// The requests may be collapsed and throttled.
 	// This replaces the 'cache invalidation' model.
+	//push到pushChannel
 	ConfigUpdate(req *PushRequest)
 
-	// ProxyUpdate is called to notify the XDS server to send a push to the specified proxy.
-	// The requests may be collapsed and throttled.
+	// ProxyUpdate is called to notify the xds server to send a push to the specified proxy.
+	// the requests may be collapsed and throttled.
+	// 操作pod时，push到pushQueue
 	ProxyUpdate(clusterID, ip string)
 }
 
@@ -207,16 +211,19 @@ type PushRequest struct {
 	// Currently, this will only scope EDS updates, as config updates are more complicated.
 	// If this is empty, then all proxies will get an update.
 	// If this is present, then only proxies that import this namespace will get an update
+	//services/endpoints改变情况
 	NamespacesUpdated map[string]struct{}
 
 	// ConfigTypesUpdated contains the types of configs that have changed.
 	// The config types are those defined in pkg/config/schemas
 	// Applicable only when Full is set to true.
+	//config改变情况
 	ConfigTypesUpdated map[string]struct{}
 
 	// EdsUpdates keeps track of all service updated since last full push.
 	// Key is the hostname (serviceName).
 	// This is used by incremental eds.
+	//记录上次全量推送后更新的所有服务，只用于增量eds
 	EdsUpdates map[string]struct{}
 
 	// Push stores the push context to use for the update. This may initially be nil, as we will
@@ -245,6 +252,7 @@ func (first *PushRequest) Merge(other *PushRequest) *PushRequest {
 		Full: first.Full || other.Full,
 
 		// The other push context is presumed to be later and more up to date
+		//以后一个为主
 		Push: other.Push,
 	}
 
@@ -495,7 +503,7 @@ func (ps *PushContext) StatusJSON() ([]byte, error) {
 // OnConfigChange is called when a config change is detected.
 func (ps *PushContext) OnConfigChange() {
 	LastPushMutex.Lock()
-	LastPushStatus = ps
+	LastPushStatus = ps //更新前旧的全局上下文放到LastPushStatus
 	LastPushMutex.Unlock()
 	ps.UpdateMetrics()
 }

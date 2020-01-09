@@ -48,13 +48,13 @@ func (conn *XdsConnection) clusters(response []*xdsapi.Cluster, noncePrefix stri
 func (s *DiscoveryServer) pushCds(con *XdsConnection, push *model.PushContext, version string) error {
 	// TODO: Modify interface to take services, and config instead of making library query registry
 	pushStart := time.Now()
-	rawClusters := s.generateRawClusters(con.node, push)
+	rawClusters := s.generateRawClusters(con.node, push) //1.生成push cluster配置
 
 	if s.DebugConfigs {
 		con.CDSClusters = rawClusters
 	}
-	response := con.clusters(rawClusters, push.Version)
-	err := con.send(response)
+	response := con.clusters(rawClusters, push.Version) //2.转换
+	err := con.send(response)                           //3.发送
 	cdsPushTime.Record(time.Since(pushStart).Seconds())
 	if err != nil {
 		adsLog.Warnf("CDS: Send failure %s: %v", con.ConID, err)

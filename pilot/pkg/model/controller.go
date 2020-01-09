@@ -28,6 +28,7 @@ package model
 // Handlers execute on the single worker queue in the order they are appended.
 // Handlers receive the notification event and the associated object.  Note
 // that all handlers must be appended before starting the controller.
+//控制接口：用于注册事件处理函数。接收queue，并执行相应事件处理回调函数
 type Controller interface {
 	// AppendServiceHandler notifies about changes to the service catalog.
 	AppendServiceHandler(f func(*Service, Event)) error

@@ -31,6 +31,7 @@ import (
 )
 
 // PodCache is an eventually consistent pod cache
+//podCache是最终一致的pod缓存
 type PodCache struct {
 	informer cache.SharedIndexInformer
 
@@ -38,6 +39,7 @@ type PodCache struct {
 	// podsByIP maintains stable pod IP to name key mapping
 	// this allows us to retrieve the latest status by pod IP.
 	// This should only contain RUNNING or PENDING pods with an allocated IP.
+	//key:podIP value: namespace + "/" + name或name
 	podsByIP map[string]string
 
 	c *Controller

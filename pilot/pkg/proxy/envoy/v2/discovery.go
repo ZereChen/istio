@@ -100,6 +100,7 @@ type DiscoveryServer struct {
 
 	// EndpointShards for a service. This is a global (per-server) list, built from
 	// incremental updates. This is keyed by service and namespace
+	//全局(每个服务器)的endpoint列表
 	EndpointShardsByService map[string]map[string]*EndpointShards
 
 	pushChannel chan *model.PushRequest
@@ -154,6 +155,7 @@ func NewDiscoveryServer(env *model.Environment, plugins []string) *DiscoveryServ
 }
 
 // Register adds the ADS and EDS handles to the grpc server
+//grpc收到envoy连接时调用绑定的handlers
 func (s *DiscoveryServer) Register(rpcs *grpc.Server) {
 	ads.RegisterAggregatedDiscoveryServiceServer(rpcs, s)
 }
@@ -166,6 +168,7 @@ func (s *DiscoveryServer) Start(stopCh <-chan struct{}) {
 }
 
 // Push metrics are updated periodically (10s default)
+//定期更新全局pushContext
 func (s *DiscoveryServer) periodicRefreshMetrics(stopCh <-chan struct{}) {
 	ticker := time.NewTicker(periodicRefreshMetrics)
 	defer ticker.Stop()
@@ -194,7 +197,7 @@ func (s *DiscoveryServer) periodicRefreshMetrics(stopCh <-chan struct{}) {
 // Push is called to push changes on config updates using ADS. This is set in DiscoveryService.Push,
 // to avoid direct dependencies.
 func (s *DiscoveryServer) Push(req *model.PushRequest) {
-	if !req.Full {
+	if !req.Full { //增量
 		req.Push = s.globalPushContext()
 		go s.AdsPushAll(versionInfo(), req)
 		return
@@ -202,20 +205,20 @@ func (s *DiscoveryServer) Push(req *model.PushRequest) {
 	// Reset the status during the push.
 	oldPushContext := s.globalPushContext()
 	if oldPushContext != nil {
-		oldPushContext.OnConfigChange()
+		oldPushContext.OnConfigChange() //更新 老的全局push上下文
 	}
 	// PushContext is reset after a config change. Previous status is
 	// saved.
 	t0 := time.Now()
 	push := model.NewPushContext()
-	if err := push.InitContext(s.Env, oldPushContext, req); err != nil {
+	if err := push.InitContext(s.Env, oldPushContext, req); err != nil { //结合本次req和oldPushContext 初始化本次push的上下文
 		adsLog.Errorf("XDS: Failed to update services: %v", err)
 		// We can't push if we can't read the data - stick with previous version.
 		pushContextErrors.Increment()
 		return
 	}
 
-	if err := s.updateServiceShards(push); err != nil {
+	if err := s.updateServiceShards(push); err != nil { //更新服务缓存
 		return
 	}
 

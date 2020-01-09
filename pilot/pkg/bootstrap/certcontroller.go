@@ -59,6 +59,7 @@ func (s *Server) initCertController(args *PilotArgs) error {
 	}
 
 	k8sClient := s.kubeClient
+	//从MeshConfig获取证书
 	for _, c := range meshConfig.GetCertificates() {
 		name := strings.Join(c.GetDnsNames(), ",")
 		if len(name) == 0 { // must have a DNS name
@@ -74,6 +75,7 @@ func (s *Server) initCertController(args *PilotArgs) error {
 
 	// Provision and manage the certificates for non-Pilot services.
 	// If services are empty, the certificate controller will do nothing.
+	//初始化
 	s.certController, err = chiron.NewWebhookController(defaultCertGracePeriodRatio, defaultMinCertGracePeriod,
 		k8sClient.CoreV1(), k8sClient.AdmissionregistrationV1beta1(), k8sClient.CertificatesV1beta1(),
 		defaultCACertPath, secretNames, dnsNames, namespaces)

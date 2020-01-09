@@ -39,7 +39,7 @@ var (
 	adsLog = istiolog.RegisterScope("ads", "ads debugging", 0)
 
 	// adsClients reflect active gRPC channels, for both ADS and EDS.
-	adsClients      = map[string]*XdsConnection{}
+	adsClients      = map[string]*XdsConnection{} //gRPC channel
 	adsClientsMutex sync.RWMutex
 
 	// Map of sidecar IDs to XdsConnections, first key is sidecarID, second key is connID
@@ -146,6 +146,7 @@ func newXdsConnection(peerAddr string, stream DiscoveryStream) *XdsConnection {
 	}
 }
 
+//开一个协程去接收请求后下发xds
 func receiveThread(con *XdsConnection, reqChannel chan *xdsapi.DiscoveryRequest, errP *error) {
 	defer close(reqChannel) // indicates close of the remote side.
 	for {
@@ -384,7 +385,7 @@ func (s *DiscoveryServer) StreamAggregatedResources(stream ads.AggregatedDiscove
 			// from it.
 
 			err := s.pushConnection(con, pushEv)
-			pushEv.done()
+			pushEv.done() //queue.MarkDone(client)
 			if err != nil {
 				return nil
 			}
@@ -479,6 +480,7 @@ func (s *DiscoveryServer) DeltaAggregatedResources(stream ads.AggregatedDiscover
 func (s *DiscoveryServer) pushConnection(con *XdsConnection, pushEv *XdsEvent) error {
 	// TODO: update the service deps based on NetworkScope
 
+	//增量eds配置下发,EdsUpdates
 	if pushEv.edsUpdatedServices != nil {
 		if !ProxyNeedsPush(con.node, pushEv) {
 			adsLog.Debugf("Skipping EDS push to %v, no updates required", con.ConID)
@@ -498,7 +500,7 @@ func (s *DiscoveryServer) pushConnection(con *XdsConnection, pushEv *XdsEvent) e
 	if err := con.node.SetWorkloadLabels(s.Env); err != nil {
 		return err
 	}
-
+	//设置node的ServiceInstances、Locality、sidecar、gateway
 	if err := con.node.SetServiceInstances(pushEv.push.ServiceDiscovery); err != nil {
 		return err
 	}
@@ -527,7 +529,7 @@ func (s *DiscoveryServer) pushConnection(con *XdsConnection, pushEv *XdsEvent) e
 
 	// check version, suppress if changed.
 	currentVersion := versionInfo()
-	pushTypes := PushTypeFor(con.node, pushEv)
+	pushTypes := PushTypeFor(con.node, pushEv) //判断推送类型
 
 	if con.CDSWatch && pushTypes[CDS] {
 		err := s.pushCds(con, pushEv.push, currentVersion)
@@ -606,7 +608,7 @@ func AdsPushAll(s *DiscoveryServer) {
 // Primary code path is from v1 discoveryService.clearCache(), which is added as a handler
 // to the model ConfigStorageCache and Controller.
 func (s *DiscoveryServer) AdsPushAll(version string, req *model.PushRequest) {
-	if !req.Full {
+	if !req.Full { //增量
 		s.edsIncremental(version, req.Push, req)
 		return
 	}
@@ -661,7 +663,7 @@ func (s *DiscoveryServer) startPush(req *model.PushRequest) {
 		}
 	}
 	req.Start = time.Now()
-	for _, p := range pending {
+	for _, p := range pending { //对所有gRPC
 		s.pushQueue.Enqueue(p, req)
 	}
 }
@@ -735,7 +737,7 @@ func (conn *XdsConnection) send(res *xdsapi.DiscoveryResponse) error {
 		done <- err
 	}()
 	select {
-	case <-t.C:
+	case <-t.C: //超时
 		// TODO: wait for ACK
 		adsLog.Infof("Timeout writing %s", conn.ConID)
 		xdsResponseWriteTimeouts.Increment()

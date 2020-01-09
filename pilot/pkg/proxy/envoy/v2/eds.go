@@ -244,6 +244,7 @@ func (s *DiscoveryServer) updateClusterInc(push *model.PushContext, clusterName 
 // Note that aggregated list is expensive (for large numbers) - we want to replace
 // it with a model where DiscoveryServer keeps track of all endpoint registries
 // directly, and calls them one by one.
+//协调k8s和非k8s的serviceController
 func (s *DiscoveryServer) updateServiceShards(push *model.PushContext) error {
 
 	// TODO: if ServiceDiscovery is aggregate, and all members support direct, use
@@ -259,7 +260,7 @@ func (s *DiscoveryServer) updateServiceShards(push *model.PushContext) error {
 			},
 		}
 	}
-
+	//非k8s serviceregistry
 	for _, registry := range registries {
 		if registry.Provider() != serviceregistry.Kubernetes {
 			nonK8sRegistries = append(nonK8sRegistries, registry)
@@ -268,6 +269,7 @@ func (s *DiscoveryServer) updateServiceShards(push *model.PushContext) error {
 
 	// Each registry acts as a shard - we don't want to combine them because some
 	// may individually update their endpoints incrementally
+	//每一个registry都有自己都serviceShard
 	for _, svc := range push.Services(nil) {
 		for _, registry := range nonK8sRegistries {
 			// in case this svc does not belong to the registry
@@ -291,7 +293,7 @@ func (s *DiscoveryServer) updateServiceShards(push *model.PushContext) error {
 					entries = append(entries, inst.Endpoint)
 				}
 			}
-
+			//(增量推送)更新EndpointShardsByService
 			s.edsUpdate(registry.Cluster(), string(svc.Hostname), svc.Attributes.Namespace, entries, true)
 		}
 	}
@@ -370,6 +372,7 @@ func (s *DiscoveryServer) SvcUpdate(cluster, hostname string, namespace string, 
 
 // Update clusters for an incremental EDS push, and initiate the push.
 // Only clusters that changed are updated/pushed.
+//增量EDS时更新集群，并启动推送。仅更新/推送已更改的群集
 func (s *DiscoveryServer) edsIncremental(version string, push *model.PushContext, req *model.PushRequest) {
 	adsLog.Infof("XDS:EDSInc Pushing:%s Services:%v ConnectedEndpoints:%d",
 		version, req.EdsUpdates, adsClientCount())
@@ -449,11 +452,13 @@ func (s *DiscoveryServer) edsUpdate(clusterID, serviceName string, namespace str
 	if _, f := s.EndpointShardsByService[serviceName]; !f {
 		s.EndpointShardsByService[serviceName] = map[string]*EndpointShards{}
 	}
+	//更新EndpointShardsByService缓存
 	ep, f := s.EndpointShardsByService[serviceName][namespace]
 	if !f {
 		// This endpoint is for a service that was not previously loaded.
 		// Return an error to force a full sync, which will also cause the
 		// EndpointsShardsByService to be initialized with all services.
+		//没找到，代表之前没缓存，首次初始化
 		ep = &EndpointShards{
 			Shards:          map[string][]*model.IstioEndpoint{},
 			ServiceAccounts: map[string]bool{},
@@ -467,6 +472,8 @@ func (s *DiscoveryServer) edsUpdate(clusterID, serviceName string, namespace str
 
 	// 2. Update data for the specific cluster. Each cluster gets independent
 	// updates containing the full list of endpoints for the service in that cluster.
+	//更新endpoint缓存
+	//service account
 	for _, e := range istioEndpoints {
 		if e.ServiceAccount != "" {
 			ep.mutex.Lock()
@@ -485,7 +492,7 @@ func (s *DiscoveryServer) edsUpdate(clusterID, serviceName string, namespace str
 			}
 		}
 	}
-
+	//Shards
 	ep.mutex.Lock()
 	ep.Shards[clusterID] = istioEndpoints
 	ep.mutex.Unlock()
@@ -519,6 +526,7 @@ func (s *DiscoveryServer) deleteEndpointShards(cluster, serviceName, namespace s
 
 // deleteService deletes all service related references from EndpointShardsByService. This is called
 // when a service is deleted.
+//删除服务关联的EndpointShardsByService缓存
 func (s *DiscoveryServer) deleteService(cluster, serviceName, namespace string) {
 	if s.EndpointShardsByService[serviceName][namespace] != nil {
 		s.EndpointShardsByService[serviceName][namespace].mutex.Lock()
@@ -716,7 +724,7 @@ func (s *DiscoveryServer) pushEds(push *model.PushContext, con *XdsConnection, v
 	// For 1.1+Sidecar - it's the small set of explicitly imported clusters, using the isolated DestinationRules
 	for _, clusterName := range con.Clusters {
 
-		l := s.generateEndpoints(clusterName, con.node, push, edsUpdatedServices)
+		l := s.generateEndpoints(clusterName, con.node, push, edsUpdatedServices) //1.生成
 		if l == nil {
 			continue
 		}
@@ -731,8 +739,8 @@ func (s *DiscoveryServer) pushEds(push *model.PushContext, con *XdsConnection, v
 		loadAssignments = append(loadAssignments, l)
 	}
 
-	response := endpointDiscoveryResponse(loadAssignments, version, push.Version)
-	err := con.send(response)
+	response := endpointDiscoveryResponse(loadAssignments, version, push.Version) //2.转换
+	err := con.send(response)                                                     //3.发送
 	edsPushTime.Record(time.Since(pushStart).Seconds())
 	if err != nil {
 		adsLog.Warnf("EDS: Send failure %s: %v", con.ConID, err)

@@ -39,17 +39,18 @@ import (
 
 // controller is a collection of synchronized resource watchers.
 // Caches are thread-safe
+//out crd控制器;ConfigStoreCache接口
 type controller struct {
-	client *Client
-	queue  queue.Instance
-	kinds  map[string]*cacheHandler
+	client *Client                  //k8s apiserver client
+	queue  queue.Instance           //config资源更新任务队列，单独一个协程处理处理
+	kinds  map[string]*cacheHandler //缓存所有config和对应事件
 }
 
 type cacheHandler struct {
 	c        *controller
 	schema   schema.Instance
 	informer cache.SharedIndexInformer
-	handlers []func(model.Config, model.Config, model.Event)
+	handlers []func(model.Config, model.Config, model.Event) //真正具体的回调函数
 }
 
 type ValidateFunc func(interface{}) error
@@ -93,14 +94,13 @@ func NewController(client *Client, options controller2.Options) model.ConfigStor
 		kinds:  make(map[string]*cacheHandler),
 	}
 
-	// add stores for CRD kinds
+	// add stores for CRD kinds 每一种config都创建一个informer
 	for _, s := range client.ConfigDescriptor() {
 		out.addInformer(s, options.WatchedNamespace, options.ResyncPeriod)
 	}
 
 	return out
 }
-
 func (c *controller) addInformer(schema schema.Instance, namespace string, resyncPeriod time.Duration) {
 	c.kinds[schema.Type] = c.newCacheHandler(schema, crd.KnownTypes[schema.Type].Object.DeepCopyObject(), schema.Type, resyncPeriod,
 		func(opts meta_v1.ListOptions) (result runtime.Object, err error) {
@@ -237,7 +237,7 @@ func (h *cacheHandler) onEvent(old, curr interface{}, event model.Event) error {
 		log.Warnf("error translating old object for schema %#v : %v\n Object:\n%#v", h.schema, err, old)
 		return nil
 	}
-
+	//具体的注册函数是在initDiscoveryService -> initEventHandlers
 	for _, f := range h.handlers {
 		f(*oldConfig, *currConfig, event)
 	}
@@ -275,7 +275,7 @@ func (c *controller) Run(stop <-chan struct{}) {
 	log.Infoa("Starting Pilot K8S CRD controller")
 	go func() {
 		cache.WaitForCacheSync(stop, c.HasSynced)
-		c.queue.Run(stop)
+		c.queue.Run(stop) //run运行的原理
 	}()
 
 	for _, ctl := range c.kinds {
