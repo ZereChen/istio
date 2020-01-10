@@ -100,7 +100,7 @@ type DiscoveryServer struct {
 
 	// EndpointShards for a service. This is a global (per-server) list, built from
 	// incremental updates. This is keyed by service and namespace
-	//全局(每个服务器)的endpoint列表
+	//缓存全局(每个服务器)的endpoint列表  key:[serviceName][namespace]
 	EndpointShardsByService map[string]map[string]*EndpointShards
 
 	pushChannel chan *model.PushRequest

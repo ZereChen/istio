@@ -89,7 +89,7 @@ func NewServiceDiscovery(configController model.ConfigStoreCache, store model.Is
 					ConfigTypesUpdated: map[string]struct{}{schemas.ServiceEntry.Type: {}},
 				}
 				c.XdsUpdater.ConfigUpdate(pushReq)
-			} else { //增量推送
+			} else { //eds推送
 				instances := convertInstances(curr, cs)
 				endpoints := make([]*model.IstioEndpoint, 0)
 				for _, instance := range instances {

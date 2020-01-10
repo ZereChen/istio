@@ -261,7 +261,6 @@ func (c *Controller) onServiceEvent(curr interface{}, event model.Event) error {
 		delete(c.externalNameSvcInstanceMap, svcConv.Hostname)
 		c.Unlock()
 		// EDS needs to just know when service is deleted.
-		//删除实例缓存
 		c.xdsUpdater.SvcUpdate(c.clusterID, svc.Name, svc.Namespace, event)
 	default:
 		// instance conversion is only required when service is added/updated.

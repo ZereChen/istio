@@ -651,7 +651,7 @@ func (s *DiscoveryServer) startPush(req *model.PushRequest) {
 	adsClientsMutex.RLock()
 	// Create a temp map to avoid locking the add/remove
 	pending := []*XdsConnection{}
-	for _, v := range adsClients {
+	for _, v := range adsClients { //在StreamAggregatedResources的addCon
 		pending = append(pending, v)
 	}
 	adsClientsMutex.RUnlock()
