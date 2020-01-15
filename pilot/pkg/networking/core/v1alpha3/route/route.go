@@ -679,11 +679,40 @@ func translateCORSPolicy(in *networking.CorsPolicy, _ *model.Proxy) *route.CorsP
 		return nil
 	}
 
-	// CORS filter is enabled by default
-	out := route.CorsPolicy{
-		AllowOrigin: in.AllowOrigin,
+	// Both AllowOrigin and AllowOriginRegex have deprecated in route.CorsPolicy.
+	// So they are Replaced with modes StringMatch_Exact and StringMatch_Regex of AllowOriginStringMatch.
+	allowOriginStringMatch := make([]*matcher.StringMatcher, 0, len(in.AllowOrigins)+len(in.AllowOrigin))
+	// If deprecated AllowOrigin is used in networking.CorsPolicy
+	if in.AllowOrigin != nil && len(in.AllowOrigin) != 0 {
+		for _, value := range in.AllowOrigin {
+			match := &matcher.StringMatcher{MatchPattern: &matcher.StringMatcher_Exact{Exact: value}}
+			allowOriginStringMatch = append(allowOriginStringMatch, match)
+		}
 	}
 
+	if in.AllowOrigins != nil && len(in.AllowOrigins) != 0 {
+		for _, value := range in.AllowOrigins {
+			switch value.MatchType.(type) {
+			case *networking.StringMatch_Exact:
+				exact := value.MatchType.(*networking.StringMatch_Exact).Exact
+				match := &matcher.StringMatcher{MatchPattern: &matcher.StringMatcher_Exact{Exact: exact}}
+				allowOriginStringMatch = append(allowOriginStringMatch, match)
+			case *networking.StringMatch_Prefix:
+				prefix := value.MatchType.(*networking.StringMatch_Prefix).Prefix
+				match := &matcher.StringMatcher{MatchPattern: &matcher.StringMatcher_Prefix{Prefix: prefix}}
+				allowOriginStringMatch = append(allowOriginStringMatch, match)
+			case *networking.StringMatch_Regex:
+				regex := value.MatchType.(*networking.StringMatch_Regex).Regex
+				match := &matcher.StringMatcher{MatchPattern: &matcher.StringMatcher_Regex{Regex: regex}}
+				allowOriginStringMatch = append(allowOriginStringMatch, match)
+			}
+		}
+	}
+	// CORS filter is enabled by default
+	out := route.CorsPolicy{
+		AllowOrigin:            in.AllowOrigin,
+		AllowOriginStringMatch: allowOriginStringMatch,
+	}
 	out.EnabledSpecifier = &route.CorsPolicy_FilterEnabled{
 		FilterEnabled: &core.RuntimeFractionalPercent{
 			DefaultValue: &xdstype.FractionalPercent{
